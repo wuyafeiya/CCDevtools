@@ -1,3 +1,6 @@
+/* Custom font imports - JetBrains Mono for code, Geist for UI */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -58,9 +61,6 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
-
-/* Custom font imports - JetBrains Mono for code, Geist for UI */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @layer components {
   /* Sidebar styling */

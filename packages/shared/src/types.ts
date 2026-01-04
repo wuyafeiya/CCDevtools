@@ -403,3 +403,274 @@ export interface ConfigEditorState {
   validationStatus?: ConfigValidationResult
   activeSection?: 'mcp' | 'hooks' | 'skills' | 'plugins'
 }
+
+// ============================================================================
+// Configuration Scopes & Hierarchies
+// ============================================================================
+
+/**
+ * Configuration scope levels in order of precedence
+ */
+export type ConfigScope = 'enterprise' | 'user' | 'project' | 'local'
+
+/**
+ * Configuration file location for each scope
+ */
+export interface ConfigScopeInfo {
+  scope: ConfigScope
+  location: string
+  sharedWithTeam: boolean
+  precedence: number
+}
+
+/**
+ * Complete settings structure following Claude Code's settings.json format
+ */
+export interface ClaudeCodeSettings {
+  // Permissions
+  permissions?: {
+    allow?: string[]
+    ask?: string[]
+    deny?: string[]
+    additionalDirectories?: string[]
+    defaultMode?: 'plan' | 'acceptEdits' | 'bypassPermissions'
+    disableBypassPermissionsMode?: 'disable'
+  }
+
+  // Sandbox settings
+  sandbox?: SandboxSettings
+
+  // Environment variables
+  env?: Record<string, string>
+
+  // Model configuration
+  model?: string
+  alwaysThinkingEnabled?: boolean
+
+  // Attribution settings
+  attribution?: {
+    commit?: string
+    pr?: string
+  }
+
+  // Hooks configuration
+  hooks?: HooksConfig
+
+  // Plugin settings
+  enabledPlugins?: Record<string, boolean>
+  extraKnownMarketplaces?: Record<string, MarketplaceSource>
+  strictKnownMarketplaces?: StrictMarketplaceSource[]
+
+  // Enterprise settings
+  apiKeyHelper?: string
+  otelHeadersHelper?: string
+  awsAuthRefresh?: string
+  awsCredentialExport?: string
+
+  // MCP server settings
+  mcpServers?: Record<string, MCPServer>
+  enableAllProjectMcpServers?: boolean
+  enabledMcpjsonServers?: string[]
+  disabledMcpjsonServers?: string[]
+  allowedMcpServers?: AllowedMcpServer[]
+  deniedMcpServers?: DeniedMcpServer[]
+
+  // Status line and file suggestion
+  statusLine?: {
+    type: 'command'
+    command: string
+  }
+  fileSuggestion?: {
+    type: 'command'
+    command: string
+  }
+
+  // Output style
+  outputStyle?: string
+
+  // Authentication
+  forceLoginMethod?: 'claudeai' | 'console'
+  forceLoginOrgUUID?: string
+
+  // Company announcements
+  companyAnnouncements?: string[]
+
+  // Cleanup
+  cleanupPeriodDays?: number
+
+  // Hooks control
+  disableAllHooks?: boolean
+  allowManagedHooksOnly?: boolean
+}
+
+/**
+ * Sandbox configuration
+ */
+export interface SandboxSettings {
+  enabled?: boolean
+  autoAllowBashIfSandboxed?: boolean
+  excludedCommands?: string[]
+  allowUnsandboxedCommands?: boolean
+  network?: {
+    allowUnixSockets?: string[]
+    allowLocalBinding?: boolean
+    httpProxyPort?: number
+    socksProxyPort?: number
+  }
+  enableWeakerNestedSandbox?: boolean
+}
+
+/**
+ * Marketplace source configuration
+ */
+export interface MarketplaceSource {
+  source: MarketplaceSourceType
+  repo?: string
+  url?: string
+  ref?: string
+  path?: string
+  package?: string
+}
+
+export type MarketplaceSourceType = 'github' | 'git' | 'url' | 'npm' | 'file' | 'directory'
+
+/**
+ * Strict marketplace source for enterprise restrictions
+ */
+export type StrictMarketplaceSource =
+  | { source: 'github'; repo: string; ref?: string; path?: string }
+  | { source: 'git'; url: string; ref?: string; path?: string }
+  | { source: 'url'; url: string; headers?: Record<string, string> }
+  | { source: 'npm'; package: string }
+  | { source: 'file'; path: string }
+  | { source: 'directory'; path: string }
+
+/**
+ * Allowed MCP server configuration
+ */
+export interface AllowedMcpServer {
+  serverName: string
+}
+
+/**
+ * Denied MCP server configuration
+ */
+export interface DeniedMcpServer {
+  serverName: string
+}
+
+// ============================================================================
+// Permission System Types
+// ============================================================================
+
+/**
+ * Permission rule types
+ */
+export type PermissionRuleType = 'allow' | 'ask' | 'deny'
+
+/**
+ * Tool names that can be permission-controlled
+ */
+export type ToolName = 'Bash' | 'Read' | 'Edit' | 'Write' | 'WebFetch' | 'WebSearch' | 'NotebookEdit' | 'SlashCommand' | 'Skill'
+
+/**
+ * Parsed permission rule
+ */
+export interface PermissionRule {
+  type: PermissionRuleType
+  tool?: ToolName
+  pattern?: string
+  original: string
+}
+
+/**
+ * Permission check result
+ */
+export interface PermissionCheckResult {
+  allowed: boolean
+  ask?: boolean
+  reason?: string
+  rule?: PermissionRule
+}
+
+// ============================================================================
+// CLI Configuration Types
+// ============================================================================
+
+/**
+ * CLI flag configuration
+ */
+export interface CLIFlags {
+  model?: string
+  agent?: string
+  permissionMode?: 'plan' | 'acceptEdits' | 'bypassPermissions'
+  continue?: boolean
+  resume?: string
+  debug?: string
+  verbose?: boolean
+  print?: boolean
+  outputFormat?: 'text' | 'json' | 'stream-json'
+  maxTurns?: number
+  systemPrompt?: string
+  appendSystemPrompt?: string
+  allowedTools?: string[]
+  disallowedTools?: string[]
+  tools?: string | string[]
+  dangerouslySkipPermissions?: boolean
+}
+
+// ============================================================================
+// Monitoring & Observability Types
+// ============================================================================
+
+/**
+ * OpenTelemetry configuration
+ */
+export interface OtelConfig {
+  headersHelper?: string
+  metricsExporter?: string
+  debounceMs?: number
+}
+
+/**
+ * Usage statistics
+ */
+export interface UsageStats {
+  totalRequests: number
+  totalTokens: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
+  cost?: number
+  timestamp: number
+}
+
+// ============================================================================
+// Session & Workspace Types
+// ============================================================================
+
+/**
+ * Workspace information
+ */
+export interface Workspace {
+  id: string
+  name: string
+  path: string
+  lastAccessed: number
+  sessionId?: string
+}
+
+/**
+ * Session context
+ */
+export interface SessionContext {
+  id: string
+  workspaceId?: string
+  startTime: number
+  lastActivity: number
+  model?: string
+  permissionMode?: string
+  totalTurns: number
+  toolCalls: number
+}

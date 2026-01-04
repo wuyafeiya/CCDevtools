@@ -8,6 +8,11 @@ import chokidar from 'chokidar';
 import { config } from './config.js';
 import { statusRoutes } from './routes/status.routes.js';
 import { configRoutes } from './routes/config.routes.js';
+import { settingsRoutes } from './routes/settings.routes.js';
+import { mcpRoutes } from './routes/mcp.routes.js';
+import { subagentsRoutes } from './routes/subagents.routes.js';
+import { validationRoutes } from './routes/validation.routes.js';
+import { exportRoutes } from './routes/export.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +37,11 @@ async function start() {
   // Register routes
   await fastify.register(statusRoutes);
   await fastify.register(configRoutes);
+  await fastify.register(settingsRoutes);
+  await fastify.register(mcpRoutes);
+  await fastify.register(subagentsRoutes);
+  await fastify.register(validationRoutes);
+  await fastify.register(exportRoutes);
 
   // WebSocket endpoint for real-time config updates
   fastify.register(async function (fastify) {
