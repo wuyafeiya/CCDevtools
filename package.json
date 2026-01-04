@@ -1,0 +1,16 @@
+{
+  "name": "claude-devtools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:server": "pnpm --filter @claude-devtools/server dev",
+    "dev:web": "pnpm --filter @claude-devtools/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
