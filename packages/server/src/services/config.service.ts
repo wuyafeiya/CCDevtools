@@ -10,7 +10,7 @@ import type {
 } from '@claude-devtools/shared';
 
 /**
- * Service for managing Claude configuration files
+ * Service for managing Claude Code CLI configuration files
  */
 export class ConfigService {
   /**
@@ -37,7 +37,7 @@ export class ConfigService {
   }
 
   /**
-   * Get Claude settings
+   * Get Claude settings from settings.json
    */
   async getSettings(): Promise<Settings | null> {
     return this.readJSON<Settings>(config.settingsPath);
@@ -47,32 +47,38 @@ export class ConfigService {
    * Update Claude settings
    */
   async updateSettings(settings: Settings): Promise<void> {
-    await this.writeJSON(config.settingsPath, settings);
+    const current = await this.getSettings() || {};
+    await this.writeJSON(config.settingsPath, { ...current, ...settings });
   }
 
   /**
-   * Get MCP configuration
+   * Get MCP configuration from .mcp.json
    */
   async getMcp(): Promise<MCPConfig | null> {
-    return this.readJSON<MCPConfig>(config.mcpPath);
+    const mcp = await this.readJSON<MCPConfig>(config.mcpPath);
+    return mcp || { mcpServers: {} };
   }
 
   /**
-   * Get hooks configuration
+   * Get hooks configuration (from settings.json hooks field)
    */
   async getHooks(): Promise<Hooks | null> {
-    return this.readJSON<Hooks>(config.hooksPath);
+    const settings = await this.getSettings();
+    return (settings as any)?.hooks || null;
   }
 
   /**
    * Update hooks configuration
    */
   async updateHooks(hooks: Hooks): Promise<void> {
-    await this.writeJSON(config.hooksPath, hooks);
+    const settings = await this.getSettings() || {};
+    (settings as any).hooks = hooks;
+    await this.writeJSON(config.settingsPath, settings);
   }
 
   /**
-   * Get all skills
+   * Get all skills from ~/.claude/skills directory
+   * Each skill is a directory containing SKILL.md
    */
   async getSkills(): Promise<Skill[]> {
     try {
@@ -80,41 +86,50 @@ export class ConfigService {
       const skills: Skill[] = [];
 
       for (const entry of entries) {
-        if (entry.isFile() && entry.name.endsWith('.skill')) {
+        if (entry.isDirectory()) {
           const skillPath = path.join(config.skillsDir, entry.name);
-          const content = await fs.readFile(skillPath, 'utf-8');
+          const skillFile = path.join(skillPath, 'SKILL.md');
 
-          // Parse skill file (YAML-like format with --- separators)
-          const parts = content.split('---').map(p => p.trim()).filter(Boolean);
-          let metadata: any = {};
-          let instructions = '';
+          try {
+            const content = await fs.readFile(skillFile, 'utf-8');
 
-          if (parts.length >= 1) {
-            // First part is metadata (YAML)
-            const metadataText = parts[0];
-            // Simple YAML parser for basic fields
-            const lines = metadataText.split('\n');
-            for (const line of lines) {
-              const match = line.match(/^(\w+):\s*(.+)$/);
-              if (match) {
-                const [, key, value] = match;
-                metadata[key] = value.trim().replace(/^["']|["']$/g, '');
+            // Parse frontmatter if exists
+            let name = entry.name;
+            let description = '';
+            let instructions = content;
+
+            // Check for YAML frontmatter
+            if (content.startsWith('---')) {
+              const endIndex = content.indexOf('---', 3);
+              if (endIndex !== -1) {
+                const frontmatter = content.substring(3, endIndex).trim();
+                instructions = content.substring(endIndex + 3).trim();
+
+                // Parse simple YAML
+                const lines = frontmatter.split('\n');
+                for (const line of lines) {
+                  const match = line.match(/^(\w+):\s*(.+)$/);
+                  if (match) {
+                    const [, key, value] = match;
+                    if (key === 'name') name = value.trim();
+                    if (key === 'description') description = value.trim();
+                  }
+                }
               }
             }
-          }
 
-          if (parts.length >= 2) {
-            // Second part is instructions
-            instructions = parts[1];
+            skills.push({
+              name,
+              description,
+              instructions,
+              enabled: true,
+              filePath: skillFile,
+              path: skillPath,
+            });
+          } catch {
+            // Skip if SKILL.md doesn't exist
+            continue;
           }
-
-          skills.push({
-            name: metadata.name || entry.name.replace('.skill', ''),
-            description: metadata.description || '',
-            instructions: instructions,
-            enabled: metadata.enabled !== 'false',
-            filePath: skillPath,
-          });
         }
       }
 
@@ -138,61 +153,46 @@ export class ConfigService {
   /**
    * Create a new skill
    */
-  async createSkill(skill: Omit<Skill, 'filePath'>): Promise<Skill> {
-    await fs.mkdir(config.skillsDir, { recursive: true });
+  async createSkill(skill: Omit<Skill, 'filePath' | 'path'>): Promise<Skill> {
+    const skillDir = path.join(config.skillsDir, skill.name);
+    const skillFile = path.join(skillDir, 'SKILL.md');
 
-    const fileName = `${skill.name}.skill`;
-    const filePath = path.join(config.skillsDir, fileName);
+    await fs.mkdir(skillDir, { recursive: true });
 
-    // Check if skill already exists
-    try {
-      await fs.access(filePath);
-      throw new Error(`Skill ${skill.name} already exists`);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw error;
-      }
-    }
-
-    // Create skill file content
-    const content = `name: ${skill.name}
-description: ${skill.description}
-enabled: ${skill.enabled !== false}
+    const content = `---
+name: ${skill.name}
+description: ${skill.description || ''}
 ---
-${skill.instructions}`;
 
-    await fs.writeFile(filePath, content, 'utf-8');
+${skill.instructions || ''}`;
+
+    await fs.writeFile(skillFile, content, 'utf-8');
 
     return {
       ...skill,
-      filePath,
+      filePath: skillFile,
+      path: skillDir,
     };
   }
 
   /**
    * Update an existing skill
    */
-  async updateSkill(name: string, updates: Partial<Omit<Skill, 'name' | 'filePath'>>): Promise<Skill> {
+  async updateSkill(name: string, updates: Partial<Omit<Skill, 'name' | 'filePath' | 'path'>>): Promise<Skill> {
     const skill = await this.getSkill(name);
-    if (!skill) {
+    if (!skill || !skill.filePath) {
       throw new Error(`Skill ${name} not found`);
     }
 
-    const updated = {
-      ...skill,
-      ...updates,
-    };
+    const updated = { ...skill, ...updates };
 
-    // Update skill file content
-    const content = `name: ${updated.name}
-description: ${updated.description}
-enabled: ${updated.enabled}
+    const content = `---
+name: ${updated.name}
+description: ${updated.description || ''}
 ---
-${updated.instructions}`;
 
-    if (!skill.filePath) {
-      throw new Error(`Skill ${name} has no file path`);
-    }
+${updated.instructions || ''}`;
+
     await fs.writeFile(skill.filePath, content, 'utf-8');
 
     return updated;
@@ -203,44 +203,48 @@ ${updated.instructions}`;
    */
   async deleteSkill(name: string): Promise<void> {
     const skill = await this.getSkill(name);
-    if (!skill) {
+    if (!skill || !skill.path) {
       throw new Error(`Skill ${name} not found`);
     }
-    if (!skill.filePath) {
-      throw new Error(`Skill ${name} has no file path`);
-    }
 
-    await fs.unlink(skill.filePath);
+    await fs.rm(skill.path, { recursive: true });
   }
 
   /**
-   * Get all plugins
+   * Get all plugins from installed_plugins.json
    */
   async getPlugins(): Promise<Plugin[]> {
     try {
-      const entries = await fs.readdir(config.pluginsDir, { withFileTypes: true });
+      const installedPath = path.join(config.pluginsDir, 'installed_plugins.json');
+      const data = await this.readJSON<{
+        version: number;
+        plugins: Record<string, Array<{
+          scope: string;
+          projectPath?: string;
+          installPath: string;
+          version: string;
+          installedAt: string;
+          lastUpdated: string;
+          isLocal: boolean;
+        }>>;
+      }>(installedPath);
+
+      if (!data?.plugins) return [];
+
       const plugins: Plugin[] = [];
 
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          const pluginPath = path.join(config.pluginsDir, entry.name);
-          const manifestPath = path.join(pluginPath, 'manifest.json');
+      for (const [pluginId, installations] of Object.entries(data.plugins)) {
+        const [name] = pluginId.split('@');
+        const latestInstall = installations[0];
 
-          try {
-            const manifest = await this.readJSON<any>(manifestPath);
-            if (manifest) {
-              plugins.push({
-                name: manifest.name || entry.name,
-                version: manifest.version || '0.0.0',
-                description: manifest.description || '',
-                enabled: manifest.enabled !== false,
-                path: pluginPath,
-              });
-            }
-          } catch {
-            // Skip invalid plugins
-            continue;
-          }
+        if (latestInstall) {
+          plugins.push({
+            name: pluginId,
+            version: latestInstall.version,
+            description: `Installed at ${latestInstall.scope} scope`,
+            enabled: true,
+            path: latestInstall.installPath,
+          });
         }
       }
 

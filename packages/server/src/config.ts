@@ -8,19 +8,24 @@ export const config = {
   port: parseInt(process.env.PORT || '5200', 10),
   host: process.env.HOST || 'localhost',
 
-  // Claude configuration directory paths
-  claudeDir: path.join(os.homedir(), 'Library', 'Application Support', 'Claude'),
+  // Claude Code CLI configuration directory (~/.claude)
+  claudeDir: path.join(os.homedir(), '.claude'),
 
   get settingsPath() {
     return path.join(this.claudeDir, 'settings.json');
   },
 
+  get settingsLocalPath() {
+    return path.join(this.claudeDir, 'settings.local.json');
+  },
+
   get mcpPath() {
-    return path.join(this.claudeDir, 'claude_desktop_config.json');
+    return path.join(this.claudeDir, '.mcp.json');
   },
 
   get hooksPath() {
-    return path.join(this.claudeDir, 'hooks.json');
+    // Hooks are in settings.json under "hooks" key
+    return this.settingsPath;
   },
 
   get skillsDir() {
