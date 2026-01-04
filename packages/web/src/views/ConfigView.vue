@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { settingsApi, type ConfigStatus } from '@/api/settings'
 import { mcpApi, type MCPServerTestResult } from '@/api/mcp'
 import { subagentsApi, type SubagentFile, type SubagentDetails, type CreateSubagentParams } from '@/api/subagents'
+import { skillsApi, type Skill, type CreateSkillParams } from '@/api/skills'
 import { validationApi, type ConfigValidationResult } from '@/api/validation'
 import {
   Settings,
@@ -26,12 +27,13 @@ import {
   CheckCircle,
   XCircle,
   Download,
-  Upload
+  Upload,
+  FileCode
 } from 'lucide-vue-next'
 
 import type { ClaudeCodeSettings, ConfigScope, PermissionRule, MCPServer } from '@claude-devtools/shared'
 
-type TabId = 'overview' | 'permissions' | 'sandbox' | 'model' | 'env' | 'hooks' | 'mcp' | 'subagents' | 'plugins' | 'advanced'
+type TabId = 'overview' | 'permissions' | 'sandbox' | 'model' | 'env' | 'hooks' | 'mcp' | 'subagents' | 'plugins' | 'skills' | 'advanced'
 
 const activeTab = ref<TabId>('overview')
 const selectedScope = ref<ConfigScope>('user')
@@ -72,6 +74,19 @@ const validationResults = ref<ConfigValidationResult | null>(null)
 const isValidating = ref(false)
 const showImportDialog = ref(false)
 const importedSettings = ref<ClaudeCodeSettings | null>(null)
+const skills = ref<Skill[]>([])
+const showSkillForm = ref(false)
+const editingSkill = ref<any>(null)
+const skillForm = ref<CreateSkillParams>({
+  name: '',
+  description: '',
+  prompt: '',
+  instructions: '',
+  enabled: true,
+  metadata: {},
+  scope: 'user',
+})
+const selectedSkillScope = ref<'user' | 'project'>('user')
 
 const tools = computed(() => subagentForm.value.tools || [])
 
@@ -84,6 +99,7 @@ const tabs = [
   { id: 'hooks' as TabId, label: 'Hooks', icon: Zap },
   { id: 'mcp' as TabId, label: 'MCP Servers', icon: Server },
   { id: 'subagents' as TabId, label: 'Subagents', icon: User },
+  { id: 'skills' as TabId, label: 'Skills', icon: FileCode },
   { id: 'plugins' as TabId, label: 'Plugins', icon: Puzzle },
   { id: 'advanced' as TabId, label: 'Advanced', icon: Settings },
 ]
@@ -113,12 +129,13 @@ function updateAttributionSetting(key: string, value: string) {
 async function loadData() {
   loading.value = true
   try {
-    const [statusResponse, settingsResponse, permissionsResponse, mcpResponse, subagentsResponse] = await Promise.all([
+    const [statusResponse, settingsResponse, permissionsResponse, mcpResponse, subagentsResponse, skillsResponse] = await Promise.all([
       settingsApi.getStatus(),
       settingsApi.getSettings(),
       settingsApi.getPermissions(),
       mcpApi.getServers(selectedScope.value),
       subagentsApi.getSubagents('user'),
+      skillsApi.getSkills('user'),
     ])
 
     if (statusResponse.success) configStatus.value = statusResponse.data || null
@@ -126,6 +143,7 @@ async function loadData() {
     if (permissionsResponse.success) permissions.value = permissionsResponse.data || []
     if (mcpResponse.success) mcpServers.value = mcpResponse.data || {}
     if (subagentsResponse.success) subagents.value = subagentsResponse.data || []
+    if (skillsResponse.success) skills.value = skillsResponse.data || []
   } catch (e) {
     console.error('Failed to load config:', e)
   } finally {
@@ -474,6 +492,102 @@ async function confirmImport() {
 function cancelImport() {
   showImportDialog.value = false
   importedSettings.value = null
+}
+
+async function loadSkills() {
+  try {
+    const response = await skillsApi.getSkills(selectedSkillScope.value)
+    if (response.success) {
+      skills.value = response.data || []
+    }
+  } catch (e) {
+    console.error('Failed to load skills:', e)
+  }
+}
+
+async function saveSkill() {
+  try {
+    let response
+    if (editingSkill.value) {
+      response = await skillsApi.updateSkill(skillForm.value)
+    } else {
+      response = await skillsApi.createSkill(skillForm.value)
+    }
+
+    if (response.success) {
+      showSkillForm.value = false
+      editingSkill.value = null
+      skillForm.value = {
+        name: '',
+        description: '',
+        prompt: '',
+        instructions: '',
+        enabled: true,
+        metadata: {},
+        scope: 'user',
+      }
+      await loadSkills()
+    } else {
+      alert('Failed to save skill: ' + response.error)
+    }
+  } catch (e) {
+    console.error('Failed to save skill:', e)
+    alert('Failed to save skill')
+  }
+}
+
+async function deleteSkill(name: string, scope: 'user' | 'project') {
+  if (!confirm(`Are you sure you want to delete skill "${name}"?`)) {
+    return
+  }
+
+  try {
+    const response = await skillsApi.deleteSkill(name, scope)
+    if (response.success) {
+      await loadSkills()
+    } else {
+      alert('Failed to delete skill: ' + response.error)
+    }
+  } catch (e) {
+    console.error('Failed to delete skill:', e)
+    alert('Failed to delete skill')
+  }
+}
+
+async function editSkill(name: string, scope: 'user' | 'project') {
+  try {
+    const response = await skillsApi.getSkillDetails(name, scope)
+    if (response.success && response.data) {
+      editingSkill.value = response.data
+      skillForm.value = {
+        name: response.data.name,
+        description: response.data.description,
+        prompt: response.data.prompt,
+        instructions: response.data.instructions,
+        enabled: response.data.enabled !== false,
+        metadata: response.data.metadata || {},
+        scope: response.data.scope || 'user',
+      }
+      showSkillForm.value = true
+    }
+  } catch (e) {
+    console.error('Failed to load skill details:', e)
+    alert('Failed to load skill details')
+  }
+}
+
+function closeSkillForm() {
+  showSkillForm.value = false
+  editingSkill.value = null
+  skillForm.value = {
+    name: '',
+    description: '',
+    prompt: '',
+    instructions: '',
+    enabled: true,
+    metadata: {},
+    scope: 'user',
+  }
 }
 
 onMounted(loadData)
@@ -1633,6 +1747,221 @@ onMounted(loadData)
             <p class="text-xs text-muted-foreground mt-1">
               Announcements to display at startup (one per line)
             </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Skills Tab -->
+      <div v-else-if="activeTab === 'skills'" class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-semibold">Skills</h3>
+            <p class="text-sm text-muted-foreground">Manage custom Claude skills for specialized tasks</p>
+          </div>
+          <button
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            @click="showSkillForm = true; loadSkills()"
+          >
+            <Plus class="w-4 h-4" />
+            Create Skill
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2 mb-4">
+          <button
+            :class="[
+              'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+              selectedSkillScope === 'user' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            ]"
+            @click="selectedSkillScope = 'user'; loadSkills()"
+          >
+            User Skills
+          </button>
+          <button
+            :class="[
+              'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+              selectedSkillScope === 'project' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            ]"
+            @click="selectedSkillScope = 'project'; loadSkills()"
+          >
+            Project Skills
+          </button>
+        </div>
+
+        <div v-if="skills.length === 0" class="text-center py-12 text-muted-foreground">
+          <FileCode class="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p>No skills found</p>
+          <p class="text-sm">Click "Create Skill" to get started</p>
+        </div>
+
+        <div v-else class="grid gap-3">
+          <div
+            v-for="skill in skills"
+            :key="skill.name"
+            class="p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="font-medium">{{ skill.name }}</span>
+                  <span
+                    v-if="skill.enabled !== false"
+                    class="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400"
+                  >
+                    Enabled
+                  </span>
+                  <span
+                    :class="[
+                      'px-2 py-0.5 rounded text-xs',
+                      skill.scope === 'user' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'
+                    ]"
+                  >
+                    User
+                  </span>
+                </div>
+                <p class="text-sm text-muted-foreground">{{ skill.description }}</p>
+                <p v-if="skill.filePath" class="text-xs text-muted-foreground mt-2 font-mono">{{ skill.filePath }}</p>
+              </div>
+              <div class="flex items-center gap-1">
+                <button
+                  class="p-2 rounded-lg hover:bg-background transition-colors text-muted-foreground hover:text-foreground"
+                  @click="editSkill(skill.name, skill.scope === 'user' ? 'user' : 'project')"
+                  title="Edit"
+                >
+                  <Edit class="w-4 h-4" />
+                </button>
+                <button
+                  class="p-2 rounded-lg hover:bg-background transition-colors text-muted-foreground hover:text-red-500"
+                  @click="deleteSkill(skill.name, skill.scope === 'user' ? 'user' : 'project')"
+                  title="Delete"
+                >
+                  <Trash2 class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="showSkillForm"
+          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          @click.self="closeSkillForm"
+        >
+          <div class="bg-background rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div class="flex items-center justify-between mb-6">
+              <h4 class="text-lg font-semibold">{{ editingSkill ? 'Edit' : 'Create' }} Skill</h4>
+              <button
+                class="p-2 rounded-lg hover:bg-muted transition-colors"
+                @click="closeSkillForm"
+              >
+                <X class="w-5 h-5" />
+              </button>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium mb-2">Scope</label>
+                <div class="flex gap-2">
+                  <button
+                    :class="[
+                      'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                      skillForm.scope === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
+                    ]"
+                    @click="skillForm.scope = 'user'"
+                    :disabled="editingSkill !== null"
+                  >
+                    User
+                  </button>
+                  <button
+                    :class="[
+                      'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                      skillForm.scope === 'project' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
+                    ]"
+                    @click="skillForm.scope = 'project'"
+                    :disabled="editingSkill !== null"
+                  >
+                    Project
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium mb-2">Name</label>
+                <input
+                  v-model="skillForm.name"
+                  type="text"
+                  placeholder="my-skill"
+                  class="w-full px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                  :disabled="editingSkill !== null"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium mb-2">Description</label>
+                <input
+                  v-model="skillForm.description"
+                  type="text"
+                  placeholder="Description of what this skill does"
+                  class="w-full px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium mb-2">Prompt</label>
+                <textarea
+                  v-model="skillForm.prompt"
+                  placeholder="Instructions for how to use this skill..."
+                  class="w-full px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                  rows="4"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium mb-2">Instructions</label>
+                <textarea
+                  v-model="skillForm.instructions"
+                  placeholder="Step-by-step instructions..."
+                  class="w-full px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                  rows="4"
+                />
+              </div>
+
+              <div class="flex items-center justify-between p-4 rounded-lg bg-muted/30">
+                <div>
+                  <p class="font-medium">Enabled</p>
+                  <p class="text-sm text-muted-foreground">Enable this skill by default</p>
+                </div>
+                <button
+                  :class="[
+                    'w-12 h-6 rounded-full transition-colors relative',
+                    skillForm.enabled ? 'bg-primary' : 'bg-muted'
+                  ]"
+                  @click="skillForm.enabled = !skillForm.enabled"
+                >
+                  <span
+                    :class="[
+                      'absolute top-1 w-4 h-4 rounded-full bg-background transition-all',
+                      skillForm.enabled ? 'left-7' : 'left-1'
+                    ]"
+                  />
+                </button>
+              </div>
+
+              <div class="flex justify-end gap-3">
+                <button
+                  class="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  @click="closeSkillForm"
+                >
+                  Cancel
+                </button>
+                <button
+                  class="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  @click="saveSkill"
+                >
+                  {{ editingSkill ? 'Update' : 'Create' }} Skill
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

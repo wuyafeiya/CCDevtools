@@ -13,6 +13,7 @@ import { mcpRoutes } from './routes/mcp.routes.js';
 import { subagentsRoutes } from './routes/subagents.routes.js';
 import { validationRoutes } from './routes/validation.routes.js';
 import { exportRoutes } from './routes/export.routes.js';
+import { skillsRoutes } from './routes/skills.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,6 +43,7 @@ async function start() {
   await fastify.register(subagentsRoutes);
   await fastify.register(validationRoutes);
   await fastify.register(exportRoutes);
+  await fastify.register(skillsRoutes);
 
   // WebSocket endpoint for real-time config updates
   fastify.register(async function (fastify) {

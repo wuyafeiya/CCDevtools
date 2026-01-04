@@ -77,6 +77,7 @@ export interface Skill {
   metadata?: Record<string, unknown>
   filePath?: string
   path?: string
+  scope?: 'user' | 'project'
 }
 
 /**
