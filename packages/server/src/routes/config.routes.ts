@@ -7,17 +7,15 @@ import type { Settings, Hooks, Skill } from '@claude-devtools/shared';
  */
 export const configRoutes: FastifyPluginAsync = async (fastify) => {
   // Settings endpoints
-  fastify.get('/api/config/settings', async (request, reply) => {
-    try {
-      const settings = await configService.getSettings();
-      if (!settings) {
-        return reply.code(404).send({ error: 'Settings not found' });
+  fastify.get('/api/config/settings', async () => {
+    const settings = await configService.getSettings();
+    return {
+      success: true,
+      data: {
+        global: settings || {},
+        local: {}
       }
-      return settings;
-    } catch (error) {
-      fastify.log.error(error);
-      return reply.code(500).send({ error: 'Failed to read settings' });
-    }
+    };
   });
 
   fastify.put<{ Body: Settings }>('/api/config/settings', async (request, reply) => {
@@ -26,94 +24,84 @@ export const configRoutes: FastifyPluginAsync = async (fastify) => {
       return { success: true };
     } catch (error) {
       fastify.log.error(error);
-      return reply.code(500).send({ error: 'Failed to update settings' });
+      return reply.code(500).send({ success: false, error: 'Failed to update settings' });
     }
   });
 
   // MCP endpoints
-  fastify.get('/api/config/mcp', async (request, reply) => {
-    try {
-      const mcp = await configService.getMcp();
-      if (!mcp) {
-        return reply.code(404).send({ error: 'MCP config not found' });
-      }
-      return mcp;
-    } catch (error) {
-      fastify.log.error(error);
-      return reply.code(500).send({ error: 'Failed to read MCP config' });
-    }
+  fastify.get('/api/config/mcp', async () => {
+    const mcp = await configService.getMcp();
+    return {
+      success: true,
+      data: mcp || { mcpServers: {} }
+    };
   });
 
   // Hooks endpoints
-  fastify.get('/api/config/hooks', async (request, reply) => {
-    try {
-      const hooks = await configService.getHooks();
-      if (!hooks) {
-        return reply.code(404).send({ error: 'Hooks not found' });
-      }
-      return hooks;
-    } catch (error) {
-      fastify.log.error(error);
-      return reply.code(500).send({ error: 'Failed to read hooks' });
-    }
+  fastify.get('/api/config/hooks', async () => {
+    const hooks = await configService.getHooks();
+    return {
+      success: true,
+      data: hooks || {}
+    };
   });
 
-  fastify.put<{ Body: Hooks }>('/api/config/hooks', async (request, reply) => {
+  fastify.put<{ Body: { hooks: Hooks } }>('/api/config/hooks', async (request, reply) => {
     try {
-      await configService.updateHooks(request.body);
+      await configService.updateHooks(request.body.hooks);
       return { success: true };
     } catch (error) {
       fastify.log.error(error);
-      return reply.code(500).send({ error: 'Failed to update hooks' });
+      return reply.code(500).send({ success: false, error: 'Failed to update hooks' });
     }
   });
 
   // Skills endpoints
-  fastify.get('/api/config/skills', async (request, reply) => {
-    try {
-      const skills = await configService.getSkills();
-      return skills;
-    } catch (error) {
-      fastify.log.error(error);
-      return reply.code(500).send({ error: 'Failed to read skills' });
-    }
+  fastify.get('/api/config/skills', async () => {
+    const skills = await configService.getSkills();
+    return {
+      success: true,
+      data: skills || []
+    };
   });
 
   fastify.get<{ Params: { name: string } }>('/api/config/skills/:name', async (request, reply) => {
-    try {
-      const skill = await configService.getSkill(request.params.name);
-      if (!skill) {
-        return reply.code(404).send({ error: 'Skill not found' });
-      }
-      return skill;
-    } catch (error) {
-      fastify.log.error(error);
-      return reply.code(500).send({ error: 'Failed to read skill' });
+    const skill = await configService.getSkill(request.params.name);
+    if (!skill) {
+      return reply.code(404).send({ success: false, error: 'Skill not found' });
     }
+    return { success: true, data: skill };
   });
 
-  fastify.post<{ Body: Omit<Skill, 'filePath'> }>('/api/config/skills', async (request, reply) => {
+  fastify.post<{ Body: { name: string; content: string } }>('/api/config/skills', async (request, reply) => {
     try {
-      const skill = await configService.createSkill(request.body);
-      return reply.code(201).send(skill);
+      const { name, content } = request.body;
+      const skill = await configService.createSkill({
+        name,
+        description: '',
+        instructions: content
+      });
+      return reply.code(201).send({ success: true, data: skill });
     } catch (error) {
       fastify.log.error(error);
       const message = error instanceof Error ? error.message : 'Failed to create skill';
-      return reply.code(500).send({ error: message });
+      return reply.code(500).send({ success: false, error: message });
     }
   });
 
   fastify.put<{
     Params: { name: string };
-    Body: Partial<Omit<Skill, 'name' | 'filePath'>>;
+    Body: { content: string };
   }>('/api/config/skills/:name', async (request, reply) => {
     try {
-      const skill = await configService.updateSkill(request.params.name, request.body);
-      return skill;
+      const skill = await configService.updateSkill(request.params.name, {
+        instructions: request.body.content
+      });
+      return { success: true, data: skill };
     } catch (error) {
       fastify.log.error(error);
       const message = error instanceof Error ? error.message : 'Failed to update skill';
-      return reply.code(500).send({ error: message });
+      return reply.code(500).send({ success: false, error: message });
     }
   });
 
@@ -124,18 +112,16 @@ export const configRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (error) {
       fastify.log.error(error);
       const message = error instanceof Error ? error.message : 'Failed to delete skill';
-      return reply.code(500).send({ error: message });
+      return reply.code(500).send({ success: false, error: message });
     }
   });
 
   // Plugins endpoints
-  fastify.get('/api/config/plugins', async (request, reply) => {
-    try {
-      const plugins = await configService.getPlugins();
-      return plugins;
-    } catch (error) {
-      fastify.log.error(error);
-      return reply.code(500).send({ error: 'Failed to read plugins' });
-    }
+  fastify.get('/api/config/plugins', async () => {
+    const plugins = await configService.getPlugins();
+    return {
+      success: true,
+      data: plugins || []
+    };
   });
 };
