@@ -11,10 +11,18 @@
  * Claude CLI settings from claude_desktop_config.json
  */
 export interface ClaudeSettings {
+  model?: string
+  theme?: 'dark' | 'light' | 'system'
+  verbose?: boolean
+  notifications?: boolean
   mcpServers?: Record<string, MCPServer>
   hooks?: HooksConfig
   skills?: Record<string, Skill>
   plugins?: Record<string, Plugin>
+  allowedTools?: string[]
+  blockedTools?: string[]
+  trustedTools?: string[]
+  additionalDirectories?: string[]
 }
 
 /**
@@ -64,8 +72,11 @@ export interface Skill {
   name: string
   description: string
   prompt?: string
+  instructions?: string
   enabled?: boolean
   metadata?: Record<string, unknown>
+  filePath?: string
+  path?: string
 }
 
 /**
@@ -74,10 +85,16 @@ export interface Skill {
 export interface Plugin {
   name: string
   version: string
+  description?: string
   enabled?: boolean
   config?: Record<string, unknown>
   skills?: Record<string, Skill>
+  path?: string
 }
+
+// Type aliases for backward compatibility
+export type Settings = ClaudeSettings
+export type Hooks = HooksConfig
 
 // ============================================================================
 // Runtime & Monitoring Types
@@ -87,12 +104,37 @@ export interface Plugin {
  * Context Usage Statistics
  */
 export interface ContextUsage {
-  totalTokens: number
-  inputTokens: number
-  outputTokens: number
+  used: number
+  total: number
+  percentage: number
+  breakdown: {
+    system: number
+    memory: number
+    conversation: number
+  }
+  totalTokens?: number
+  inputTokens?: number
+  outputTokens?: number
   cacheReadTokens?: number
   cacheCreationTokens?: number
-  timestamp: number
+  timestamp?: number
+}
+
+/**
+ * DevTools Status Information
+ */
+export interface DevToolsStatus {
+  connected: boolean
+  model?: string
+  sessionId?: string
+  startTime?: number
+  totalMessages?: number
+  totalToolCalls?: number
+  currentContextUsage?: ContextUsage
+  context?: ContextUsage
+  mcpServers?: number
+  activeHooks?: number
+  lastActivity?: number
 }
 
 /**
@@ -131,19 +173,6 @@ export interface TimelineEvent {
   timestamp: number
   data: unknown
   metadata?: Record<string, unknown>
-}
-
-/**
- * DevTools Status Information
- */
-export interface DevToolsStatus {
-  connected: boolean
-  sessionId?: string
-  startTime?: number
-  totalMessages?: number
-  totalToolCalls?: number
-  currentContextUsage?: ContextUsage
-  lastActivity?: number
 }
 
 // ============================================================================

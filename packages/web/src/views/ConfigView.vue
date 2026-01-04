@@ -12,6 +12,8 @@ import {
   RefreshCw
 } from 'lucide-vue-next'
 
+import type { ClaudeSettings, MCPServer, HooksConfig, Skill, Plugin } from '@claude-devtools/shared'
+
 const activeTab = ref('settings')
 
 const tabs = [
@@ -22,11 +24,11 @@ const tabs = [
   { id: 'plugins', label: 'Plugins', icon: Puzzle },
 ]
 
-const settings = ref<Record<string, unknown>>({})
-const mcpServers = ref<Record<string, unknown>>({})
-const hooks = ref<Record<string, unknown[]>>({})
-const skills = ref<Array<{ name: string; path: string }>>([])
-const plugins = ref<Array<{ name: string; path: string }>>([])
+const settings = ref<ClaudeSettings>({})
+const mcpServers = ref<Record<string, MCPServer>>({})
+const hooks = ref<HooksConfig>({})
+const skills = ref<Skill[]>([])
+const plugins = ref<Plugin[]>([])
 const loading = ref(false)
 
 async function loadData() {
@@ -39,8 +41,8 @@ async function loadData() {
       api.getSkills(),
       api.getPlugins(),
     ])
-    settings.value = settingsData.global
-    mcpServers.value = mcpData.mcpServers || {}
+    settings.value = settingsData?.global || {}
+    mcpServers.value = mcpData?.mcpServers || {}
     hooks.value = hooksData || {}
     skills.value = skillsData || []
     plugins.value = pluginsData || []
@@ -142,7 +144,7 @@ onMounted(loadData)
         </div>
         <div v-else class="space-y-3">
           <div
-            v-for="(config, name) in mcpServers"
+            v-for="(_server, name) in mcpServers"
             :key="name"
             class="flex items-center justify-between p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
           >

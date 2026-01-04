@@ -2,7 +2,6 @@
 import { computed, onMounted } from 'vue'
 import { useStatusStore } from '@/stores/status'
 import {
-  Layers,
   Brain,
   MessageSquare,
   Database,

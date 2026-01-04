@@ -1,5 +1,4 @@
 import type {
-  ApiResponse,
   DevToolsStatus,
   ClaudeSettings,
   MCPConfig,
@@ -10,39 +9,40 @@ import type {
 } from '@claude-devtools/shared'
 
 /**
- * Base API URL - defaults to localhost:3000
+ * Base API URL - use relative path to leverage Vite proxy
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE_URL = '/api'
 
 /**
- * Generic request function with error handling
+ * Generic request function that unwraps API response
  */
 async function request<T>(
   endpoint: string,
   options?: RequestInit
-): Promise<ApiResponse<T>> {
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers
-      },
-      ...options
-    })
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers
+    },
+    ...options
+  })
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: Date.now()
-    }
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
   }
+
+  const data = await response.json()
+
+  // Handle wrapped API response format
+  if (data && typeof data === 'object' && 'success' in data) {
+    if (!data.success) {
+      throw new Error(data.error || 'Request failed')
+    }
+    return data.data as T
+  }
+
+  return data as T
 }
 
 /**
@@ -52,107 +52,87 @@ export const api = {
   /**
    * Get current DevTools status
    */
-  async getStatus(): Promise<ApiResponse<DevToolsStatus>> {
-    return request<DevToolsStatus>('/api/status')
-  },
+  getStatus: () => request<DevToolsStatus>('/status'),
 
   /**
    * Get current Claude settings
    */
-  async getSettings(): Promise<ApiResponse<ClaudeSettings>> {
-    return request<ClaudeSettings>('/api/settings')
-  },
+  getSettings: () => request<{ global: ClaudeSettings; local: ClaudeSettings }>('/config/settings'),
 
   /**
    * Update Claude settings
    */
-  async updateSettings(settings: Partial<ClaudeSettings>): Promise<ApiResponse<ClaudeSettings>> {
-    return request<ClaudeSettings>('/api/settings', {
+  updateSettings: (settings: Partial<ClaudeSettings>) =>
+    request<void>('/config/settings', {
       method: 'PUT',
       body: JSON.stringify(settings)
-    })
-  },
+    }),
 
   /**
    * Get MCP server configuration
    */
-  async getMcp(): Promise<ApiResponse<MCPConfig>> {
-    return request<MCPConfig>('/api/mcp')
-  },
+  getMcp: () => request<MCPConfig>('/config/mcp'),
 
   /**
    * Get MCP server status
    */
-  async getMcpStatus(): Promise<ApiResponse<MCPServerStatus[]>> {
-    return request<MCPServerStatus[]>('/api/mcp/status')
-  },
+  getMcpStatus: () => request<MCPServerStatus[]>('/mcp/status'),
 
   /**
    * Get hooks configuration
    */
-  async getHooks(): Promise<ApiResponse<HooksConfig>> {
-    return request<HooksConfig>('/api/hooks')
-  },
+  getHooks: () => request<HooksConfig>('/config/hooks'),
 
   /**
    * Update hooks configuration
    */
-  async updateHooks(hooks: HooksConfig): Promise<ApiResponse<HooksConfig>> {
-    return request<HooksConfig>('/api/hooks', {
+  updateHooks: (hooks: HooksConfig) =>
+    request<void>('/config/hooks', {
       method: 'PUT',
-      body: JSON.stringify(hooks)
-    })
-  },
+      body: JSON.stringify({ hooks })
+    }),
 
   /**
    * Get all skills
    */
-  async getSkills(): Promise<ApiResponse<Record<string, Skill>>> {
-    return request<Record<string, Skill>>('/api/skills')
-  },
+  getSkills: () => request<Skill[]>('/config/skills'),
 
   /**
    * Get a specific skill
    */
-  async getSkill(name: string): Promise<ApiResponse<Skill>> {
-    return request<Skill>(`/api/skills/${encodeURIComponent(name)}`)
-  },
+  getSkill: (name: string) =>
+    request<Skill>(`/config/skills/${encodeURIComponent(name)}`),
 
   /**
    * Create a new skill
    */
-  async createSkill(name: string, skill: Skill): Promise<ApiResponse<Skill>> {
-    return request<Skill>('/api/skills', {
+  createSkill: (name: string, content: string) =>
+    request<void>('/config/skills', {
       method: 'POST',
-      body: JSON.stringify({ name, ...skill })
-    })
-  },
+      body: JSON.stringify({ name, content })
+    }),
 
   /**
    * Update an existing skill
    */
-  async updateSkill(name: string, skill: Partial<Skill>): Promise<ApiResponse<Skill>> {
-    return request<Skill>(`/api/skills/${encodeURIComponent(name)}`, {
+  updateSkill: (name: string, content: string) =>
+    request<void>(`/config/skills/${encodeURIComponent(name)}`, {
       method: 'PUT',
-      body: JSON.stringify(skill)
-    })
-  },
+      body: JSON.stringify({ content })
+    }),
 
   /**
    * Delete a skill
    */
-  async deleteSkill(name: string): Promise<ApiResponse<void>> {
-    return request<void>(`/api/skills/${encodeURIComponent(name)}`, {
+  deleteSkill: (name: string) =>
+    request<void>(`/config/skills/${encodeURIComponent(name)}`, {
       method: 'DELETE'
-    })
-  },
+    }),
 
   /**
    * Get all plugins
    */
-  async getPlugins(): Promise<ApiResponse<Record<string, Plugin>>> {
-    return request<Record<string, Plugin>>('/api/plugins')
-  }
+  getPlugins: () => request<Plugin[]>('/config/plugins')
 }
 
 export default api

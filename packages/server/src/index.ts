@@ -59,7 +59,7 @@ async function start() {
         );
       });
 
-      connection.socket.on('message', (message) => {
+      connection.socket.on('message', (message: Buffer) => {
         fastify.log.debug({ message: message.toString() }, 'Received message');
 
         // Echo back for now (can add command handling later)
@@ -76,7 +76,7 @@ async function start() {
         watcher.close();
       });
 
-      connection.socket.on('error', (error) => {
+      connection.socket.on('error', (error: Error) => {
         fastify.log.error(error, 'WebSocket error');
         watcher.close();
       });

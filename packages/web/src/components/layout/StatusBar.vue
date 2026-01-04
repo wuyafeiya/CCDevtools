@@ -23,11 +23,6 @@ const contextColor = computed(() => {
   return 'bg-red-500'
 })
 
-const formatNumber = (n: number) => {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
-  return n.toString()
-}
-
 // Simulated session time
 const sessionTime = ref('00:00:00')
 let startTime = Date.now()

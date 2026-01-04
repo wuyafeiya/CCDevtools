@@ -16,15 +16,10 @@ export const useStatusStore = defineStore('status', () => {
   // Computed
   const isConnected = computed(() => status.value?.connected ?? false)
 
-  const model = computed(() => {
-    if (!status.value) return null
-    // Model information would typically come from the API
-    // For now, returning a placeholder
-    return 'Claude Opus 4.5'
-  })
+  const model = computed(() => status.value?.model ?? 'Claude Opus 4.5')
 
   const contextUsage = computed((): ContextUsage | null => {
-    return status.value?.currentContextUsage ?? null
+    return status.value?.currentContextUsage ?? status.value?.context ?? null
   })
 
   const sessionId = computed(() => status.value?.sessionId ?? null)
@@ -43,13 +38,7 @@ export const useStatusStore = defineStore('status', () => {
     error.value = null
 
     try {
-      const response = await api.getStatus()
-
-      if (response.success && response.data) {
-        status.value = response.data
-      } else {
-        error.value = response.error ?? 'Failed to fetch status'
-      }
+      status.value = await api.getStatus()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error'
     } finally {

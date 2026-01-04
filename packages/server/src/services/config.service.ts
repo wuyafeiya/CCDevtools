@@ -190,6 +190,9 @@ enabled: ${updated.enabled}
 ---
 ${updated.instructions}`;
 
+    if (!skill.filePath) {
+      throw new Error(`Skill ${name} has no file path`);
+    }
     await fs.writeFile(skill.filePath, content, 'utf-8');
 
     return updated;
@@ -202,6 +205,9 @@ ${updated.instructions}`;
     const skill = await this.getSkill(name);
     if (!skill) {
       throw new Error(`Skill ${name} not found`);
+    }
+    if (!skill.filePath) {
+      throw new Error(`Skill ${name} has no file path`);
     }
 
     await fs.unlink(skill.filePath);

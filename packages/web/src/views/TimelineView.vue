@@ -7,7 +7,6 @@ import {
   Wrench,
   AlertCircle,
   ChevronDown,
-  Filter,
   Search
 } from 'lucide-vue-next'
 
