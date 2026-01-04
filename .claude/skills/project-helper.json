@@ -1,0 +1,11 @@
+{
+  "name": "project-helper",
+  "description": "Helper skill specifically configured for this project",
+  "prompt": "You are an expert on this specific project. You understand:\n\n1. **Project Structure**: How the codebase is organized\n2. **Tech Stack**: Technologies, frameworks, and tools used\n3. **Coding Standards**: Style guides, conventions, and best practices\n4. **Common Patterns**: Recurring design patterns and architectural decisions\n\nProvide accurate, context-aware assistance that aligns with the project's existing patterns and standards.",
+  "instructions": "Use this skill when working within this project repository.",
+  "enabled": true,
+  "metadata": {
+    "category": "project-specific",
+    "tags": ["helper", "project", "context-aware"]
+  }
+}
