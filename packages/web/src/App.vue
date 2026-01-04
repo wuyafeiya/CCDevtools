@@ -1,9 +1,10 @@
-<template>
-  <div class="min-h-screen bg-background text-foreground">
-    <RouterView />
-  </div>
-</template>
-
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+import AppLayout from '@/components/layout/AppLayout.vue'
 </script>
+
+<template>
+  <AppLayout>
+    <RouterView />
+  </AppLayout>
+</template>
